@@ -1,6 +1,4 @@
-"Timestamp","Station","AirTemperature","AirTemperature","RelativeHumidity","Precipitation","WindSpeed2m","WindSpeed2m","SoilTemperature5cm","SoilTemperature5cm","SoilTemperature10cm","SoilTemperature10cm","SolarRadiation","ETo","ETo"
-"","","max","min","avg","total","avg","max","max","min","max","min","total","grass","alfalfa"
-"","","°C","°C","%","mm","m/s","m/s","°C","°C","°C","°C","MJ/m²","mm","mm"
+"Timestamp","Station","tAirMax_C","tAirMin_C","relHum_prc","precip_mm","windAvg_m.s","windMax_m.s","tSoilMax_5cm","tSoilMin_5cm","tSoilMax_10cm","tSoilMin_10cm","solarRad_MJ.m2","EToGrass_mm","EToAlfalfa_mm"
 "2016-01-01","Lane",6.2,-12.6,63.3,0,3.6,9.9,M,M,-0.3,-1.8,10.8,1.68,2.75
 "2016-01-02","Lane",10.1,-12.0,52.4,0,3.5,8.9,M,M,-0.2,-2.0,10.9,2.29,3.79
 "2016-01-03","Lane",9.4,-8.7,54.3,0,2.2,6.0,M,M,-0.2,-1.2,10.8,1.58,2.57

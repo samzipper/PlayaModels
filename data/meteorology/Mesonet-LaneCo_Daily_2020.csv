@@ -1,6 +1,4 @@
-"Timestamp","Station","AirTemperature","AirTemperature","RelativeHumidity","Precipitation","WindSpeed2m","WindSpeed2m","SoilTemperature5cm","SoilTemperature5cm","SoilTemperature10cm","SoilTemperature10cm","SolarRadiation","ETo","ETo"
-"","","max","min","avg","total","avg","max","max","min","max","min","total","grass","alfalfa"
-"","","°C","°C","%","mm","m/s","m/s","°C","°C","°C","°C","MJ/m²","mm","mm"
+"Timestamp","Station","tAirMax_C","tAirMin_C","relHum_prc","precip_mm","windAvg_m.s","windMax_m.s","tSoilMax_5cm","tSoilMin_5cm","tSoilMax_10cm","tSoilMin_10cm","solarRad_MJ.m2","EToGrass_mm","EToAlfalfa_mm"
 "2020-01-01","Lane",14.0,-7.1,62.0,0,2.7,7.0,0.3,0.2,1.1,1.0,11.1,2.16,3.58
 "2020-01-02","Lane",8.7,-1.9,77.6,0,3.5,9.3,1.6,0.3,1.9,1.0,9.3,1.27,1.98
 "2020-01-03","Lane",8.4,-2.9,65.7,0,3.3,8.7,2.5,0.6,2.4,1.3,11.3,1.65,2.66
