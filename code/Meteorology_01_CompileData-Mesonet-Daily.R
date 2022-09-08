@@ -5,7 +5,7 @@
 source(file.path("code", "paths+packages.R"))
 
 # find files
-met_files <- list.files(path = file.path("data", "meteorology"), 
+met_files <- list.files(path = file.path("data", "meteorology", "raw"), 
                         pattern = "Mesonet-LaneCo_Daily_",
                         full.names = T)
 
@@ -55,5 +55,10 @@ df_met$EToAlfalfa_mm <- na.approx(df_met$EToAlfalfa_mm)
 ggplot(df_met, aes(x = Timestamp, y = EToAlfalfa_mm)) +
   geom_col()
 
+# check NAs
+summary(df_met)
+
 ## save output
-write_csv(df_met, file.path("results", "Meteorology_Mesonet-LaneCo_Daily-AllYears_Clean.csv"))
+first_year <- min(year(df_met$Timestamp))
+last_year <- max(year(df_met$Timestamp))
+write_csv(df_met, file.path("data", "meteorology", paste0("Mesonet-LaneCo_Daily_", first_year, "-", last_year, "_Clean.csv")))
