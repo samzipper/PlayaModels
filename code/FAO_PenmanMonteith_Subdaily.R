@@ -48,7 +48,7 @@ FAO_PenmanMonteith_SubDaily <- function(met_data,
   b <- 2*pi*(DOY-81)/364 # eqn 33
   Sc <- 0.1645*sin(2*b)-0.1255*cos(b)-0.025*sin(b) # eqn 32
   # solar time angle at midpoint of period
-  t <- (DOY-floor(DOY))*24 + time_step*24/2
+  t <- hour(met_data$datetime) + (DOY-floor(DOY))*24 + time_step*24/2
   w <- pi/12*((t+0.06667*(Lz-Lm)+Sc)-12) # eqn 31
   # solar time angles at beginning and end of the period
   t1 <- time_step*24 # length of period in hours
@@ -56,12 +56,14 @@ FAO_PenmanMonteith_SubDaily <- function(met_data,
   w2 <- w+pi*t1/24 # eqn 30
   # inverse relative distance Earth-Sun
   d_r <- 1 + 0.033*cos(2*pi*DOY/365) # eqn 23
-  # solar decimation
-  del <- 0.409*sin(2*pi*DOY/365-1.39) # eqn 24
+  # solar declination
+  del <- 0.409*sin((2*pi*DOY/365)-1.39) # eqn 24
   # sunset hour angle
   w_s <- acos(-tan(lat)*tan(del)) # eqn 25
   # extraterrestrial radiation
-  R_a <- ((1/(time_step*24))*24*12*60/pi)*0.0820*d_r*((w2-w1)*sin(lat)*sin(del) + cos(lat)*cos(del)*(sin(w2)-sin(w1))) # eqn 28 
+  R_a <- (12*60/pi)*0.0820*d_r*
+    ((w2-w1)*sin(lat)*sin(del) + 
+       cos(lat)*cos(del)*(sin(w2)-sin(w1))) # eqn 28 
   R_a[abs(w)>w_s] <- 0
   
   ## Determination of clear-sky solar radiation, R_so
@@ -105,9 +107,9 @@ FAO_PenmanMonteith_SubDaily <- function(met_data,
   R_ns <- (1 - albedo)*met_data$R_s  # eqn 38
   
   ## Determination of net outgoing longwave radiation, R_nl
-  s <- (4.903e-9)*time_step     # Stefan-Boltzmann constant
+  s <- 4.903e-9     # Stefan-Boltzmann constant
   TairK4 <- (met_data$Tair + 273.16)^4
-  R_nl <- s*TairK4*(0.34-0.14*met_data$ea^0.5)*(1.35*Rfrac1-0.35) # eqn 39
+  R_nl <- s*TairK4*(0.34-0.14*ea^0.5)*(1.35*Rfrac1-0.35) # eqn 39
   
   ## Determination of net radiation, R_n
   R_n <- R_ns - R_nl # eqn 40
@@ -118,17 +120,5 @@ FAO_PenmanMonteith_SubDaily <- function(met_data,
   
   ## Calculate grass reference potential evapotranspiration, ETo [mm/hr]
   ETo <- (0.408*delta*(R_n-G)/24+psy*37/(met_data$Tair+273)*met_data$U2*met_data$VPD)/(delta + psy*(1 + 0.34*met_data$U2))   # [mm hr-1] eqn 53
-  return(data.frame(datetime=met_data$datetime, 
-                    ETo=ETo))
+  return(ETo)
 }
-
-#out <- data.frame(julian=met_data$julian, 
-#                  ETo=ETo,
-#                  R_n=R_n)
-#out$DOY <- floor(out$julian)
-#out.day <- dplyr::summarize(group_by(out, DOY),
-#                            ETo = sum(ETo)/4,
-#                            R_n = mean(R_n))
-#
-#qplot(out.day$DOY, out.day$ETo)
-#qplot(out.day$DOY, out.day$R_n/0.0864)

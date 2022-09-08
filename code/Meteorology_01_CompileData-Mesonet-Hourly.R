@@ -149,6 +149,54 @@ df_met %>%
 ## check NAs
 summary(df_met)
 
+## CALCULATE ETo
+source(file.path("code", "FAO_PenmanMonteith_Subdaily.R"))
+
+df_met$ETo_mm <- 
+  FAO_PenmanMonteith_SubDaily(met_data = data.frame(datetime = df_met$Timestamp, 
+                                                    R_s = df_met$rs_MJ.m2,
+                                                    P = df_met$pressure_kPa,
+                                                    Tair = df_met$tAir2mMean_C,
+                                                    VPD = df_met$vpd_kPa,
+                                                    U2 = df_met$wspd2m_m.s),
+                              elev = 872,
+                              lat = 38.509,        # latitude in degrees
+                              Lm = 100.615,         # longitude [deg W of Greenwich]
+                              Lm.center = 90,  # longitude of center of time zone [deg W of Greenwich] 75, 90, 105, and 120 for Eastern, Central, Rocky Mountain, and Pacific time zones
+                              DST = 1)
+
+## INSPECT ETo
+# sum to daily and compare to daily ETo extracted directly from mesonet
+df_daily <- read_csv(file.path("data", "meteorology", "Mesonet-LaneCo_Daily_2014-2021_Clean.csv")) |>
+  mutate(Year = year(Timestamp),
+         DOY = yday(Timestamp))
+
+df_hrToDay <-
+  df_met |>
+  mutate(Year = year(Timestamp),
+         DOY = yday(Timestamp)) |> 
+  group_by(Year, DOY) |> 
+  summarize(ETo_mm_sum = sum(ETo_mm),
+            precip_mm_sum = sum(precip_mm))
+
+df_compare <- 
+  left_join(df_daily[,c("Year", "DOY", "EToGrass_mm", "EToAlfalfa_mm", "precip_mm")], df_hrToDay[,c("Year", "DOY", "ETo_mm_sum", "precip_mm_sum")], by = c("Year", "DOY"))
+
+ggplot(df_compare, aes(x = EToGrass_mm, y = ETo_mm_sum)) +
+  geom_point() +
+  geom_abline(intercept = 0, slope = 1, color = "red")
+
+ggplot(df_compare, aes(x = precip_mm, y = precip_mm_sum)) +
+  geom_point() +
+  geom_abline(intercept = 0, slope = 1, color = "red")
+
+df_compare |> 
+  select(Year, DOY, EToGrass_mm, ETo_mm_sum) |> 
+  pivot_longer(-c("Year", "DOY")) |> 
+  ggplot(aes(x = DOY, y = value, color = name)) +
+  geom_line() +
+  facet_wrap(~Year)
+
 ## save output
 first_year <- min(year(df_met$Timestamp))
 last_year <- max(year(df_met$Timestamp))
