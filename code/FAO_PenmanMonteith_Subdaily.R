@@ -13,7 +13,8 @@ FAO_PenmanMonteith_SubDaily <- function(met_data,
                                         lat,        # latitude in degrees
                                         Lm,         # longitude [deg W of Greenwich]
                                         Lm.center,  # longitude of center of time zone [deg W of Greenwich] 75, 90, 105, and 120 for Eastern, Central, Rocky Mountain, and Pacific time zones
-                                        DST         # daylight savings time? [1=yes]
+                                        DST,        # daylight savings time? [1=yes]
+                                        minETo = 0  # minimum allowed ETo
 ){
   
   library(lubridate)
@@ -120,5 +121,6 @@ FAO_PenmanMonteith_SubDaily <- function(met_data,
   
   ## Calculate grass reference potential evapotranspiration, ETo [mm/hr]
   ETo <- (0.408*delta*(R_n-G)/24+psy*37/(met_data$Tair+273)*met_data$U2*met_data$VPD)/(delta + psy*(1 + 0.34*met_data$U2))   # [mm hr-1] eqn 53
+  ETo[ETo < minETo] <- minETo
   return(ETo)
 }

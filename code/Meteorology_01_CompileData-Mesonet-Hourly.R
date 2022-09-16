@@ -45,13 +45,13 @@ summary(df_met)
 # precip2 is all 0s or NA - drop this and just use precip1
 df_met$precip2_mm <- NULL
 names(df_met)[names(df_met) == "precip1_mm"] <- "precip_mm"
-which(is.na(df_met$precip_mm))
+#which(is.na(df_met$precip_mm))
 # manual inspection of missing timesteps - all are in the midst of long stretches of 0, so set to 0 (via linear interpolation)
 df_met$precip_mm <- na.approx(df_met$precip_mm)
-ggplot(df_met, aes(x = Timestamp, y = precip_mm)) + geom_col()
+#ggplot(df_met, aes(x = Timestamp, y = precip_mm)) + geom_col()
 
 ## PRESSURE
-ggplot(df_met, aes(x = Timestamp, y = pressure_kPa)) + geom_line()
+#ggplot(df_met, aes(x = Timestamp, y = pressure_kPa)) + geom_line()
 # prior to 2015-06-29 01:00:00 - calculate based on station elevation (872 m) using FAO 56 eq. 7
 i_bad <- which(df_met$Timestamp == ymd_hms("2015-06-29 01:00:00"))
 df_met$pressure_kPa[1:i_bad] <- 101.3*((293-0.0065*872)/293)^5.26
@@ -60,51 +60,51 @@ df_met$pressure_kPa <- na.approx(df_met$pressure_kPa) # linear interpolate remai
 ## SOLAR RADIATION
 # for Penman-Monteith we need MJ/m2, not kW/m2, so drop one column
 df_met$rs_kW.m2 <- NULL
-which(is.na(df_met$rs_MJ.m2)) # linear interpolate
+#which(is.na(df_met$rs_MJ.m2)) # linear interpolate
 df_met$rs_MJ.m2 <- na.approx(df_met$rs_MJ.m2)
-ggplot(df_met, aes(x = Timestamp, y = rs_MJ.m2)) + geom_line()
+#ggplot(df_met, aes(x = Timestamp, y = rs_MJ.m2)) + geom_line()
 
 ## TEMPERATURE
 # 2m mean - mostly complete
-which(is.na(df_met$tAir2mMean_C)) # linear interpolate
+#which(is.na(df_met$tAir2mMean_C)) # linear interpolate
 df_met$tAir2mMean_C <- na.approx(df_met$tAir2mMean_C)
-ggplot(df_met, aes(x = Timestamp, y = tAir2mMean_C)) + geom_line()
+#ggplot(df_met, aes(x = Timestamp, y = tAir2mMean_C)) + geom_line()
 
 # 10m mean - complete from mid-2017 onwards
-ggplot(df_met, aes(x = Timestamp, y = tAir10mMean_C)) + geom_line()
+#ggplot(df_met, aes(x = Timestamp, y = tAir10mMean_C)) + geom_line()
 # good data starts 2017-06-16 11:00:00
 i_bad <- which(df_met$Timestamp == ymd_hms("2017-06-16 10:00:00"))
 df_met$tAir10mMean_C[1:i_bad] <- NA
 df_met$tAir10mMean_C <- na.approx(df_met$tAir10mMean_C, na.rm = F)
-ggplot(df_met, aes(x = Timestamp, y = tAir10mMean_C)) + geom_line()
+#ggplot(df_met, aes(x = Timestamp, y = tAir10mMean_C)) + geom_line()
 
 # 2m min/max only available for 2 years - delete
-ggplot(df_met, aes(x = Timestamp, y = tAir2mMin_C)) + geom_line()
-ggplot(df_met, aes(x = Timestamp, y = tAir2mMax_C)) + geom_line()
+#ggplot(df_met, aes(x = Timestamp, y = tAir2mMin_C)) + geom_line()
+#ggplot(df_met, aes(x = Timestamp, y = tAir2mMax_C)) + geom_line()
 df_met$tAir2mMin_C <- NULL
 df_met$tAir2mMax_C <- NULL
 
 ## REL HUMIDITY AND VPD
-which(is.na(df_met$rh2m_prc)) # linear interpolate
+#which(is.na(df_met$rh2m_prc)) # linear interpolate
 df_met$rh2m_prc <- na.approx(df_met$rh2m_prc)
-ggplot(df_met, aes(x = Timestamp, y = rh2m_prc)) + geom_line()
+#ggplot(df_met, aes(x = Timestamp, y = rh2m_prc)) + geom_line()
 
-which(is.na(df_met$vpd_kPa))  # linear interpolate
+#which(is.na(df_met$vpd_kPa))  # linear interpolate
 df_met$vpd_kPa <- na.approx(df_met$vpd_kPa)
-ggplot(df_met, aes(x = Timestamp, y = vpd_kPa)) + geom_line()
+#ggplot(df_met, aes(x = Timestamp, y = vpd_kPa)) + geom_line()
 
 ## WIND SPEED
-which(is.na(df_met$wspd2m_m.s)) # linear interpolate
+#which(is.na(df_met$wspd2m_m.s)) # linear interpolate
 df_met$wspd2m_m.s <- na.approx(df_met$wspd2m_m.s)
-ggplot(df_met, aes(x = Timestamp, y = wspd2m_m.s)) + geom_line()
+#ggplot(df_met, aes(x = Timestamp, y = wspd2m_m.s)) + geom_line()
 
 ## SOIL TEMPERATURE
-df_met %>% 
-  select(Timestamp, starts_with("tSoil")) %>% 
-  pivot_longer(-Timestamp) %>% 
-  ggplot(aes(x = Timestamp, y = value)) +
-  geom_line() +
-  facet_wrap(~ name)
+#df_met %>% 
+#  select(Timestamp, starts_with("tSoil")) %>% 
+#  pivot_longer(-Timestamp) %>% 
+#  ggplot(aes(x = Timestamp, y = value)) +
+#  geom_line() +
+#  facet_wrap(~ name)
 # mostly start in 2017 - start of record look weird so delete before 2017-08-16 15:00:00
 i_bad <- which(df_met$Timestamp == ymd_hms("2017-08-16 15:00:00"))
 df_met$tSoil5cm_C[1:i_bad] <- NA
@@ -116,20 +116,20 @@ df_met$tSoil5cm_C <- na.approx(df_met$tSoil5cm_C, na.rm = F)
 df_met$tSoil10cm_C <- na.approx(df_met$tSoil10cm_C, na.rm = F)
 df_met$tSoil20cm_C <- na.approx(df_met$tSoil20cm_C, na.rm = F)
 df_met$tSoil50cm_C <- na.approx(df_met$tSoil50cm_C, na.rm = F)
-df_met %>% 
-  select(Timestamp, starts_with("tSoil")) %>% 
-  pivot_longer(-Timestamp) %>% 
-  ggplot(aes(x = Timestamp, y = value)) +
-  geom_line() +
-  facet_wrap(~ name)
+#df_met %>% 
+#  select(Timestamp, starts_with("tSoil")) %>% 
+#  pivot_longer(-Timestamp) %>% 
+#  ggplot(aes(x = Timestamp, y = value)) +
+#  geom_line() +
+#  facet_wrap(~ name)
 
 ## VWC
-df_met %>% 
-  select(Timestamp, starts_with("vwc")) %>% 
-  pivot_longer(-Timestamp) %>% 
-  ggplot(aes(x = Timestamp, y = value)) +
-  geom_line() +
-  facet_wrap(~ name)
+#df_met %>% 
+#  select(Timestamp, starts_with("vwc")) %>% 
+#  pivot_longer(-Timestamp) %>% 
+#  ggplot(aes(x = Timestamp, y = value)) +
+#  geom_line() +
+#  facet_wrap(~ name)
 # mostly start in 2017 - start of record look weird so delete before 2017-08-16 15:00:00
 i_bad <- which(df_met$Timestamp == ymd_hms("2017-08-16 15:00:00"))
 # one other weird timestep in late 2019? just for a single hour. set to NA then linearly interpolate
@@ -139,12 +139,12 @@ df_met$vwc5cm <- na.approx(df_met$vwc5cm, na.rm = F)
 df_met$vwc10cm <- na.approx(df_met$vwc10cm, na.rm = F)
 df_met$vwc20cm <- na.approx(df_met$vwc20cm, na.rm = F)
 df_met$vwc50cm <- na.approx(df_met$vwc50cm, na.rm = F)
-df_met %>% 
-  select(Timestamp, starts_with("vwc")) %>% 
-  pivot_longer(-Timestamp) %>% 
-  ggplot(aes(x = Timestamp, y = value)) +
-  geom_line() +
-  facet_wrap(~ name)
+#df_met %>% 
+#  select(Timestamp, starts_with("vwc")) %>% 
+#  pivot_longer(-Timestamp) %>% 
+#  ggplot(aes(x = Timestamp, y = value)) +
+#  geom_line() +
+#  facet_wrap(~ name)
 
 ## check NAs
 summary(df_met)
