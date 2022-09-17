@@ -1,24 +1,26 @@
-## BucketModel_01_RunBucket.R
+## DailyBucket_01_RunBucket.R
 
 # load various packages + bucket
 source(file.path("code", "paths+packages.R"))
 source(file.path("code", "BucketModel.R"))
 
 # load daily meteorological data
-df_met <- read_csv(file.path("results", "Meteorology_Mesonet-LaneCo_Daily-AllYears_Clean.csv"))
+df_met <- read_csv(file.path("data", "meteorology", "Mesonet-LaneCo_Daily_2014-2021_Clean.csv"))
 
 # define parameters
+ts <- 1                 # [days] = timestep of 1 day
 int_depth <- 0.005      # [m] maximum quantity of interception
 porosity <- 0.4         # [-] porosity of soil
 Ksat <- 1               # [m/day] saturated hydraulic conductivity of bucket soils
 S_field <- 0.3/porosity # refine
 S_stress <- 0.3         # refine
-S_init <- 0.5           # [-] relative soil moisture at initial conditions
+S_init <- S_field       # [-] relative soil moisture at initial conditions
 z_bucket <- 2           # refine
 
 # run bucket model
 df_bucket <- bucket_model(precip = df_met$precip_mm/1000, 
                           PET = df_met$EToGrass_mm/1000, 
+                          ts = ts,
                           Ksat = Ksat, 
                           porosity = porosity, 
                           S_field = S_field, 
