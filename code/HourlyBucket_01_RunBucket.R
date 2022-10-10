@@ -19,7 +19,7 @@ Ksat <- 5*(86400/1000)  # [m/day] saturated hydraulic conductivity of bucket soi
 S_field <- 0.3/porosity # refine
 S_stress <- 0.3         # refine
 S_init <- S_field       # [-] relative soil moisture at initial conditions
-z_bucket <- 0.15        # at Mesonet site, 20 cm and 50 cm soil moisture sensors look like clay
+z_bucket <- 2.0         # at Mesonet site, 20 cm and 50 cm soil moisture sensors look like clay
 
 # preferential flow
 S_open <- S_stress
@@ -70,17 +70,35 @@ playa_bucket <- bucket_model(precip = df_met$precip_mm /1000,
 
 
 ### some plots
+## playa
 playa_bucket %>% 
   pivot_longer(-date) %>% 
   ggplot(aes(x = date, y = value)) + 
   geom_line() +
-  facet_wrap(~name, scales = "free")
+  facet_wrap(~name, scales = "free") +
+  labs(title = "Playa results")
 
-df_bucket %>% 
+playa_bucket %>% 
   pivot_longer(-date) %>% 
   ggplot(aes(x = value)) + 
   geom_histogram() +
-  facet_wrap(~name, scales = "free")
+  facet_wrap(~name, scales = "free") +
+  labs(title = "Playa results")
+
+## interplaya
+interplaya_bucket %>% 
+  pivot_longer(-date) %>% 
+  ggplot(aes(x = date, y = value)) + 
+  geom_line() +
+  facet_wrap(~name, scales = "free") +
+  labs(title = "Interplaya results")
+
+interplaya_bucket %>% 
+  pivot_longer(-date) %>% 
+  ggplot(aes(x = value)) + 
+  geom_histogram() +
+  facet_wrap(~name, scales = "free") +
+  labs(title = "Interplaya results")
 
 ## compare simulated and measured VWC
 df_vwc_playa <- 
@@ -91,6 +109,7 @@ df_vwc_playa <-
   mutate(Year = year(date),
          DOY = yday(date)+hour(date)/24) |> 
   subset(Year >= 2017)
+
 df_vwc_playa$Variable <- 
   factor(df_vwc_playa$name, 
          levels = c("vwc5cm", "vwc10cm", "vwc20cm", "vwc50cm", "vwc_bucket"),
@@ -104,6 +123,7 @@ df_vwc_interplaya <-
   mutate(Year = year(date),
          DOY = yday(date)+hour(date)/24) |> 
   subset(Year >= 2017)
+
 df_vwc_interplaya$Variable <- 
   factor(df_vwc_interplaya$name, 
          levels = c("vwc5cm", "vwc10cm", "vwc20cm", "vwc50cm", "vwc_bucket"),
