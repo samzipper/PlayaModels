@@ -1,16 +1,33 @@
-## HourlyBucket_01_RunBucket.R
+## DailyBucket_01_RunBucket.R
 
-# load various packages + bucket
+
+# Workspace prep ----------------------------------------------------------
+
+## load various packages + bucket
 source(file.path("code", "paths+packages.R"))
 source(file.path("code", "BucketModel.R"))
 
-# load hourly meteorological data
-df_met <- 
-  read_csv(file.path("data", "meteorology", "Mesonet-LaneCo_Hourly_2014-2021_Clean.csv")) |> 
-  mutate(Year = year(Timestamp))
+## CHOOSE TIMESTEP
+ts <- 1  # [days] options are 1 (daily model) or 1/24 (hourly model)
+
+## prep data and parameters
+# load meteorological data
+if (ts == 1){
+  df_met <- 
+    read_csv(file.path("data", "meteorology", "Mesonet-LaneCo_Daily_2014-2021_Clean.csv")) |> 
+    mutate(Year = year(Timestamp))
+  
+  # for daily, there are two ETo options: grass or alfalfa
+  # need to rename one of them ETo_mm so it gets pulled in to model
+  names(df_met)[names(df_met) == "EToGrass_mm"] <- "ETo_mm"
+  
+} else if (ts == 1/24){
+  df_met <- 
+    read_csv(file.path("data", "meteorology", "Mesonet-LaneCo_Hourly_2014-2021_Clean.csv")) |> 
+    mutate(Year = year(Timestamp))
+}
 
 # define parameters
-ts <- 1/24              # [days] = timestep of 1 hour
 int_depth <- 0.005      # [m] maximum quantity of interception
 porosity <- 0.46        # [-] porosity of soil (Salley et al., 0.46 m3/m3)
 Ksat <- 0.35            # [m/day] saturated hydraulic conductivity of bucket soils
@@ -23,7 +40,7 @@ Ksat <- 0.35            # [m/day] saturated hydraulic conductivity of bucket soi
 S_field <- 0.3/porosity # refine
 S_stress <- 0.3         # refine
 S_init <- S_field       # [-] relative soil moisture at initial conditions
-z_bucket <- 2.0         # at Mesonet site, 20 cm and 50 cm soil moisture sensors look like clay
+z_bucket <- 2.0         # bucket depth - results highly sensitive to this parameter
 
 # preferential flow
 S_open <- S_stress
@@ -46,13 +63,20 @@ for (y in 1:length(spinup_yrs)){
   }
 }
 spinup_ts <- dim(df_met_spinup)[1]
-spinup_start_datetime <- df_met$Timestamp[1] - hours(spinup_ts)
-spinup_datetime <- seq(spinup_start_datetime, (df_met$Timestamp[1] - hours(1)), by = "hour")
+if (ts == 1){
+  spinup_start_datetime <- df_met$Timestamp[1] - days(spinup_ts)  
+  spinup_datetime <- seq(spinup_start_datetime, (df_met$Timestamp[1] - days(1)), by = "day")
+} else if (ts == 1/24){
+  spinup_start_datetime <- df_met$Timestamp[1] - hours(spinup_ts) 
+  spinup_datetime <- seq(spinup_start_datetime, (df_met$Timestamp[1] - hours(1)), by = "hour")
+}
+
 precip_mm_with_spinup <- c(df_met_spinup$precip_mm, df_met$precip_mm)
 ETo_mm_with_spinup <- c(df_met_spinup$ETo_mm, df_met$ETo_mm)
 
-## run models
-# run interplaya bucket model
+# Run models --------------------------------------------------------------
+
+# run interplaya bucket
 interplaya_bucket <- bucket_model(precip = precip_mm_with_spinup/1000, 
                                   runon = NULL,
                                   PET = ETo_mm_with_spinup/1000, 
@@ -69,14 +93,6 @@ interplaya_bucket <- bucket_model(precip = precip_mm_with_spinup/1000,
                                   ponding = F) %>% 
   mutate(timestep = seq(1, length(precip_mm_with_spinup)),
          datetime = c(spinup_datetime, df_met$Timestamp))
-
-interplaya_bucket |> 
-  select(timestep, infiltration_mm, soilMoisture_prc, runoff_mm) |> 
-  pivot_longer(-timestep) |> 
-  ggplot(aes(x = timestep, y = value)) +
-  facet_wrap(~name, ncol = 1, scales = "free_y") +
-  geom_line() +
-  geom_vline(xintercept = spinup_ts, color = "red")
 
 # calculate runon from interplaya to playa
 #  runon is equal to runoff from interplaya * (watershed area - playa area)/playa area
@@ -106,13 +122,56 @@ playa_bucket <- bucket_model(precip = precip_mm_with_spinup/1000,
   mutate(timestep = seq(1, length(precip_mm_with_spinup)),
          datetime = c(spinup_datetime, df_met$Timestamp))
 
-### hourly plots
-## compare simulated and measured VWC
+# plot results ------------------------------------------------------------
+
+## set up for plotting
+# remove spinup data
+playa_plot <- 
+  playa_bucket[spinup_ts+1:dim(playa_bucket)[1], ] |> 
+  mutate(soilMoisture_vwc = soilMoisture_prc*porosity) |> 
+  select(-timestep, -soilMoisture_prc)
+interplaya_plot <- 
+  interplaya_bucket[spinup_ts+1:dim(interplaya_bucket)[1], ] |> 
+  mutate(soilMoisture_vwc = soilMoisture_prc*porosity) |> 
+  select(-timestep, -soilMoisture_prc)
+
+# set up label for plot title
+ts_label <- ifelse(ts == 1, "Daily", "Hourly")
+
+## playa
+playa_plot %>% 
+  pivot_longer(-datetime) %>% 
+  ggplot(aes(x = datetime, y = value)) + 
+  geom_line() +
+  facet_wrap(~name, scales = "free") +
+  labs(title = paste0("Playa results, ", ts_label, " ts"))
+
+playa_plot %>% 
+  pivot_longer(-datetime) %>% 
+  ggplot(aes(x = value)) + 
+  geom_histogram() +
+  facet_wrap(~name, scales = "free") +
+  labs(title = paste0("Playa results, ", ts_label, " ts"))
+
+## interplaya
+interplaya_plot %>% 
+  pivot_longer(-datetime) %>% 
+  ggplot(aes(x = datetime, y = value)) + 
+  geom_line() +
+  facet_wrap(~name, scales = "free") +
+  labs(title = paste0("Interplaya results, ", ts_label, " ts"))
+
+interplaya_plot %>% 
+  pivot_longer(-datetime) %>% 
+  ggplot(aes(x = value)) + 
+  geom_histogram() +
+  facet_wrap(~name, scales = "free") +
+  labs(title = paste0("Interplaya results, ", ts_label, " ts"))
+
+## compare simulated and measured VWC - not currently working
 df_vwc_playa <- 
-  playa_bucket |> 
-  subset(timestep > spinup_ts) |> 
-  left_join(df_met, by = c("datetime"="Timestamp", "precip_mm")) |> 
-  mutate(vwc_bucket = soilMoisture_prc*porosity) |> 
+  df_met |> 
+  rename(datetime = Timestamp) |> 
   select(datetime, precip_mm, starts_with("vwc")) |> 
   mutate(Year = year(datetime),
          DOY.dec = yday(datetime)+hour(datetime)/24) |> 
@@ -163,102 +222,3 @@ p_combo <-
 p_combo
 ggsave(file.path("plots", "HourlyBucket_CompareVWC.png"),
        p_combo, width = 190, height = 210, units = "mm")
-
-## playa
-playa_bucket %>% 
-  pivot_longer(-datetime) %>% 
-  ggplot(aes(x = datetime, y = value)) + 
-  geom_line() +
-  facet_wrap(~name, scales = "free") +
-  labs(title = "Playa results, hourly")
-
-playa_bucket %>% 
-  pivot_longer(-datetime) %>% 
-  ggplot(aes(x = value)) + 
-  geom_histogram() +
-  facet_wrap(~name, scales = "free") +
-  labs(title = "Playa results, hourly")
-
-## interplaya
-interplaya_bucket %>% 
-  pivot_longer(-datetime) %>% 
-  ggplot(aes(x = datetime, y = value)) + 
-  geom_line() +
-  facet_wrap(~name, scales = "free") +
-  labs(title = "Interplaya results, hourly")
-
-interplaya_bucket %>% 
-  pivot_longer(-datetime) %>% 
-  ggplot(aes(x = value)) + 
-  geom_histogram() +
-  facet_wrap(~name, scales = "free") +
-  labs(title = "Interplaya results, hourly")
-
-### daily plots
-## average to day
-interplaya_bucket_day <- 
-  interplaya_bucket |> 
-  subset(timestep > spinup_ts) |> 
-  mutate(Year = year(datetime),
-         DOY = floor(yday(datetime)+hour(datetime)/24)) |> 
-  group_by(Year, DOY) |> 
-  # sum fluxes; average stores
-  summarize(precip_mm.d = sum(precip_mm),
-            PET_mm.d = sum(PET_mm),
-            precipEff_mm.d = sum(precipEff_mm),
-            interception_mm.d = sum(interception_mm),
-            runoff_mm.d = sum(runoff_mm),
-            infiltration_mm.d = sum(infiltration_mm),
-            ET_mm.d = sum(ET_mm),
-            leakage_mat_mm.d = sum(leakage_mat_mm),
-            soilMoisture_prc.d = mean(soilMoisture_prc),
-            date = mean(datetime))
-
-playa_bucket_day <- 
-  playa_bucket |> 
-  subset(timestep > spinup_ts) |> 
-  mutate(Year = year(datetime),
-         DOY = floor(yday(datetime)+hour(datetime)/24)) |> 
-  group_by(Year, DOY) |> 
-  # sum fluxes; average stores
-  summarize(precip_mm.d = sum(precip_mm),
-            PET_mm.d = sum(PET_mm),
-            precipEff_mm.d = sum(precipEff_mm),
-            interception_mm.d = sum(interception_mm),
-            pond_depth_mm.d = mean(pond_depth_mm),
-            infiltration_mm.d = sum(infiltration_mm),
-            ET_mm.d = sum(ET_mm),
-            leakage_mat_mm.d = sum(leakage_mat_mm),
-            leakage_pref_mm.d = sum(leakage_pref_mm),
-            soilMoisture_prc.d = mean(soilMoisture_prc),
-            date = mean(datetime))
-
-## plot: playa
-playa_bucket_day %>% 
-  pivot_longer(-c("date", "Year", "DOY")) %>% 
-  ggplot(aes(x = date, y = value)) + 
-  geom_line() +
-  facet_wrap(~name, scales = "free") +
-  labs(title = "Playa results, averaged to daily")
-
-playa_bucket_day %>% 
-  pivot_longer(-c("date", "Year", "DOY")) %>% 
-  ggplot(aes(x = value)) + 
-  geom_histogram() +
-  facet_wrap(~name, scales = "free") +
-  labs(title = "Playa results, averaged to daily")
-
-## plot: interplaya
-interplaya_bucket_day %>% 
-  pivot_longer(-c("date", "Year", "DOY")) %>% 
-  ggplot(aes(x = date, y = value)) + 
-  geom_line() +
-  facet_wrap(~name, scales = "free") +
-  labs(title = "Interplaya results, averaged to daily")
-
-interplaya_bucket_day %>% 
-  pivot_longer(-c("date", "Year", "DOY")) %>% 
-  ggplot(aes(x = value)) + 
-  geom_histogram() +
-  facet_wrap(~name, scales = "free") +
-  labs(title = "Interplaya results, averaged to daily")
