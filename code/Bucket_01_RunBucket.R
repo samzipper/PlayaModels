@@ -15,16 +15,21 @@ ts <- 1  # [days] options are 1 (daily model) or 1/24 (hourly model)
 if (ts == 1){
   df_met <- 
     read_csv(file.path("data", "meteorology", "Mesonet-LaneCo_Daily_2014-2021_Clean.csv")) |> 
-    mutate(Year = year(Timestamp))
+    mutate(Year = year(Timestamp)) |> 
+    rename(ETo_mm = EToGrass_mm) |> 
+    select(Timestamp, Year, ETo_mm, precip_mm)
   
   # for daily, there are two ETo options: grass or alfalfa
   # need to rename one of them ETo_mm so it gets pulled in to model
   names(df_met)[names(df_met) == "EToGrass_mm"] <- "ETo_mm"
   
+  # subset to relevant columns
+  
 } else if (ts == 1/24){
   df_met <- 
     read_csv(file.path("data", "meteorology", "Mesonet-LaneCo_Hourly_2014-2021_Clean.csv")) |> 
-    mutate(Year = year(Timestamp))
+    mutate(Year = year(Timestamp)) |> 
+    select(Timestamp, Year, ETo_mm, precip_mm)
 }
 
 # define parameters
@@ -90,7 +95,7 @@ interplaya_bucket <- bucket_model(precip = precip_mm_with_spinup/1000,
                                   z_bucket = z_bucket,
                                   use_Kunsat = F,
                                   pref_flow = F,
-                                  ponding = F) %>% 
+                                  ponding = F) |> 
   mutate(timestep = seq(1, length(precip_mm_with_spinup)),
          datetime = c(spinup_datetime, df_met$Timestamp))
 
@@ -118,7 +123,7 @@ playa_bucket <- bucket_model(precip = precip_mm_with_spinup/1000,
                              ponding = T,
                              S_open = S_open,
                              S_closed = S_closed,
-                             pref_frac = pref_frac) %>% 
+                             pref_frac = pref_frac) |> 
   mutate(timestep = seq(1, length(precip_mm_with_spinup)),
          datetime = c(spinup_datetime, df_met$Timestamp))
 
@@ -127,50 +132,58 @@ playa_bucket <- bucket_model(precip = precip_mm_with_spinup/1000,
 ## set up for plotting
 # remove spinup data
 playa_plot <- 
-  playa_bucket[spinup_ts+1:dim(playa_bucket)[1], ] |> 
-  mutate(soilMoisture_vwc = soilMoisture_prc*porosity) |> 
+  playa_bucket |> 
+  subset(timestep > spinup_ts) |> 
+  mutate(soilMoisture_vwc = soilMoisture_prc*porosity,
+         Year = year(datetime),
+         DOY.dec = yday(datetime)+hour(datetime)/24) |> 
   select(-timestep, -soilMoisture_prc)
+
 interplaya_plot <- 
-  interplaya_bucket[spinup_ts+1:dim(interplaya_bucket)[1], ] |> 
-  mutate(soilMoisture_vwc = soilMoisture_prc*porosity) |> 
+  interplaya_bucket |> 
+  subset(timestep > spinup_ts) |> 
+  mutate(soilMoisture_vwc = soilMoisture_prc*porosity,
+         Year = year(datetime),
+         DOY.dec = yday(datetime)+hour(datetime)/24) |> 
   select(-timestep, -soilMoisture_prc)
 
 # set up label for plot title
 ts_label <- ifelse(ts == 1, "Daily", "Hourly")
 
 ## playa
-playa_plot %>% 
-  pivot_longer(-datetime) %>% 
+playa_plot |> 
+  pivot_longer(-c("datetime", "Year", "DOY.dec")) |> 
   ggplot(aes(x = datetime, y = value)) + 
   geom_line() +
   facet_wrap(~name, scales = "free") +
   labs(title = paste0("Playa results, ", ts_label, " ts"))
 
-playa_plot %>% 
-  pivot_longer(-datetime) %>% 
+playa_plot |> 
+  pivot_longer(-c("datetime", "Year", "DOY.dec")) |> 
   ggplot(aes(x = value)) + 
   geom_histogram() +
   facet_wrap(~name, scales = "free") +
   labs(title = paste0("Playa results, ", ts_label, " ts"))
 
 ## interplaya
-interplaya_plot %>% 
-  pivot_longer(-datetime) %>% 
+interplaya_plot |> 
+  pivot_longer(-c("datetime", "Year", "DOY.dec")) |> 
   ggplot(aes(x = datetime, y = value)) + 
   geom_line() +
   facet_wrap(~name, scales = "free") +
   labs(title = paste0("Interplaya results, ", ts_label, " ts"))
 
-interplaya_plot %>% 
-  pivot_longer(-datetime) %>% 
+interplaya_plot |> 
+  pivot_longer(-c("datetime", "Year", "DOY.dec")) |> 
   ggplot(aes(x = value)) + 
   geom_histogram() +
   facet_wrap(~name, scales = "free") +
   labs(title = paste0("Interplaya results, ", ts_label, " ts"))
 
-## compare simulated and measured VWC - not currently working
-df_vwc_playa <- 
-  df_met |> 
+## compare simulated and measured VWC
+# load VWC data
+df_vwc <- 
+  read_csv(file.path("data", "meteorology", "Mesonet-LaneCo_Hourly_2014-2021_Clean.csv")) |> 
   rename(datetime = Timestamp) |> 
   select(datetime, precip_mm, starts_with("vwc")) |> 
   mutate(Year = year(datetime),
@@ -178,47 +191,22 @@ df_vwc_playa <-
   pivot_longer(starts_with("vwc"), values_to = "VWC") |> 
   subset(Year >= 2017)
 
-df_vwc_playa$Variable <- 
-  factor(df_vwc_playa$name, 
-         levels = c("vwc5cm", "vwc10cm", "vwc20cm", "vwc50cm", "vwc_bucket"),
-         labels = c("Mesonet, 5 cm", "Mesonet, 10 cm", "Mesonet, 20 cm", "Mesonet, 50 cm", "Bucket Model"))
+df_vwc$Variable <- 
+  factor(df_vwc$name, 
+         levels = c("vwc5cm", "vwc10cm", "vwc20cm", "vwc50cm"),
+         labels = c("Mesonet, 5 cm", "Mesonet, 10 cm", "Mesonet, 20 cm", "Mesonet, 50 cm"))
 
-df_vwc_interplaya <- 
-  left_join(interplaya_bucket, df_met, by = c("datetime"="Timestamp", "precip_mm")) |> 
-  mutate(vwc_bucket = soilMoisture_prc*porosity) |> 
-  select(datetime, precip_mm, starts_with("vwc")) |> 
-  pivot_longer(starts_with("vwc"), values_to = "VWC") |> 
-  mutate(Year = year(datetime),
-         DOY.dec = yday(datetime)+hour(datetime)/24) |> 
-  subset(Year >= 2017)
-
-df_vwc_interplaya$Variable <- 
-  factor(df_vwc_interplaya$name, 
-         levels = c("vwc5cm", "vwc10cm", "vwc20cm", "vwc50cm", "vwc_bucket"),
-         labels = c("Mesonet, 5 cm", "Mesonet, 10 cm", "Mesonet, 20 cm", "Mesonet, 50 cm", "Bucket Model"))
-
-p_vwc_interplaya <- 
-  ggplot(df_vwc_interplaya, aes(x = DOY.dec, y = VWC, color = Variable)) +
-  geom_line() +
-  facet_wrap(~Year) +
-  scale_color_manual(values = c(col.cat.blu, col.cat.grn, col.cat.org, col.cat.yel, "black")) +
+p_vwc <- 
+  ggplot() +
+  geom_line(data = df_vwc, aes(x = DOY.dec, y = VWC, color = Variable)) +
+  geom_line(data = subset(interplaya_plot, Year >= 2017), aes(x = DOY.dec, y = soilMoisture_vwc), linetype = "dashed") +
+  geom_line(data = subset(playa_plot, Year >= 2017), aes(x = DOY.dec, y = soilMoisture_vwc)) +
+  facet_wrap(~Year, ncol = 1) +
+  scale_color_manual(values = c(col.cat.blu, col.cat.grn, col.cat.org, col.cat.yel)) +
   scale_x_continuous(name = "Day of Year", expand = c(0,0)) +
   scale_y_continuous(name = "Volumetric Water Content [m\u00b3/m\u00b3]") +
-  labs(title = "Interplaya soil moisture results, hourly")
+  labs(title = "Comparing buckets (black) to soil moisture sensors (colors)",
+       subtitle = "Dashed = interplaya bucket, solid = playa bucket")
 
-p_vwc_playa <- 
-  ggplot(df_vwc_playa, aes(x = DOY.dec, y = VWC, color = Variable)) +
-  geom_line() +
-  facet_wrap(~Year) +
-  scale_color_manual(values = c(col.cat.blu, col.cat.grn, col.cat.org, col.cat.yel, "black")) +
-  scale_x_continuous(name = "Day of Year", expand = c(0,0)) +
-  scale_y_continuous(name = "Volumetric Water Content [m\u00b3/m\u00b3]") +
-  labs(title = "Playa soil moisture results, hourly")
-
-p_combo <-
-  (p_vwc_interplaya / p_vwc_playa) +
-  plot_layout(guides = "collect") &
-  theme(legend.position = "bottom")
-p_combo
-ggsave(file.path("plots", "HourlyBucket_CompareVWC.png"),
-       p_combo, width = 190, height = 210, units = "mm")
+ggsave(file.path("plots", paste0("Bucket_CompareVWC_", ts_label, ".png")),
+       p_vwc, width = 120, height = 210, units = "mm")
