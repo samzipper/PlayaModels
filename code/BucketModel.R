@@ -16,6 +16,7 @@
 # - int_depth = maximum quantity of interception [m]
 # - z_bucket = depth of bucket [m] - assumed <= root depth in playas
 # - output_vars = "all" or a vector specifying names of variables that should be output
+# - use_Kunsat = should K be reduced in unsaturated conditions? defaults to FALSE. If T, Kunsat = Ksat*relative soil moisture.
 # - pref_flow = should preferential flow be simulated? defaults to FALSE.
 # - ponding = should ponding be simulated? defaults to FALSE.
 # Additional parameters needed if pref_flow = T
@@ -25,7 +26,7 @@
 
 bucket_model <- function(precip, runon, PET, ts, 
                          Ksat, porosity, S_field, S_stress, S_init, int_depth, z_bucket,
-                         output_vars = "all", pref_flow = F, ponding = F, ...){
+                         output_vars = "all", use_Kunsat = F, pref_flow = F, ponding = F, ...){
   
   # Input data checks --------------------------------
   if (length(precip) != length(PET)) stop("precip and PET vector lengths differ")
@@ -74,8 +75,15 @@ bucket_model <- function(precip, runon, PET, ts,
   # Partition rainfall between effective precipitation and interception 
   for (i in 2:n_ts){
     
-    # scale K as function of soil moisture
-    Kunsat_ts <- Ksat_ts*soil.moisture[i-1]
+    # calculate effective K
+    if (use_Kunsat){
+      # scale based on soil moisture if use_Kunsat = T
+      Keff_ts <- Ksat_ts*soil.moisture[i-1]
+    } else {
+      # use Ksat if use_Kunsat = F
+      Keff_ts <- Ksat_ts
+    }
+    
     
     # available water is sum of precip + runon + pond depth from last timestep
     surface_water[i] <- precip[i] + runon[i] + pond_depth[i-1]
@@ -120,7 +128,7 @@ bucket_model <- function(precip, runon, PET, ts,
       
       # calculate the maximum possible infiltration based on Kunsat (hortonian) and/or previous soil moisture storage (dunne)
       infiltration.max <- min(c(
-        Kunsat_ts,
+        Keff_ts,
         (porosity*z_bucket - soil.moisture[i-1]*porosity*z_bucket)
       ))
       
@@ -150,8 +158,8 @@ bucket_model <- function(precip, runon, PET, ts,
       # if relative soil moisture is less than field capacity, there is no leakage
       leakage_mat[i] <- 0
     } else {
-      # if we are above field capacity, linearly scale from 0-Kunsat_ts
-      leakage_mat[i] <- Kunsat_ts*(soil.moisture[i-1] - S_field)/(1-S_field)
+      # if we are above field capacity, linearly scale from 0-Keff_ts
+      leakage_mat[i] <- Keff_ts*(soil.moisture[i-1] - S_field)/(1-S_field)
       
       # make sure that you don't remove enough water to reduce soil
       # moisture in bucket below field capacity
