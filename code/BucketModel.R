@@ -8,10 +8,11 @@
 # Static input data:
 # - ts = timestep of input data timeseries [days]
 # - Ksat = saturated hydraulic conductivity of soils [m/day]
-# - porosity = porosity of soil [-]
+# - porosity = porosity of soil [m3/m3]
 # - S_field = relative soil moisture at field capacity, where relative soil moisture is defined as Vwater/(Vair + Vwater) [-]
 #     If you have an estimate of Sy, you can estimate S_field as (Sy/porosity)
 # - S_stress = relative soil moisture below which water stress occurs [-]
+# - S_resid = relative soil moisture at which no available water remains [-]
 # - S_init = relative soil moisture at initial conditions [-]
 # - int_depth = maximum quantity of interception [m]
 # - z_bucket = depth of bucket [m] - assumed <= root depth in playas
@@ -154,6 +155,8 @@ bucket_model <- function(precip, runon, PET, ts,
     }
     
     # calculate matrix leakage out of bottom
+    if (S_field < S_resid) stop("S_field should be greater than S_resid")
+    
     if (soil.moisture[i-1] < S_field) {
       # if relative soil moisture is less than field capacity, there is no leakage
       leakage_mat[i] <- 0
@@ -161,8 +164,7 @@ bucket_model <- function(precip, runon, PET, ts,
       # if we are above field capacity, linearly scale from 0-Keff_ts
       leakage_mat[i] <- Keff_ts*(soil.moisture[i-1] - S_field)/(1-S_field)
       
-      # make sure that you don't remove enough water to reduce soil
-      # moisture in bucket below field capacity
+      # make sure that you don't remove enough water to reduce soil moisture below field capacity
       if (leakage_mat[i] >= (soil.moisture[i-1] - S_field)*porosity*z_bucket){
         leakage_mat[i] <- (soil.moisture[i-1] - S_field)*porosity*z_bucket
       }
@@ -191,16 +193,20 @@ bucket_model <- function(precip, runon, PET, ts,
     }
     
     # calculate ET as a function of soil moisture at previous timestep
+    available_soil_moisture <- max(c((soil.moisture[i-1] - S_resid)*porosity*z_bucket, 0))
     if (soil.moisture[i-1] > S_stress){
       # if relative soil moisture is larger than S_stress ET=PET
       ET_soil <- (PET[i] - ET_int - ET_pond)
-    } else{
+    } else if (soil.moisture[i-1] <= S_resid) {
+      # if at residual water content, no ET allowed
+      ET_soil <- 0
+    } else {
       # if relative soil moisture is less than S_stress, reduce linearly to 0
-      ET_soil <- (PET[i] - ET_int - ET_pond)*(soil.moisture[i-1])/(S_stress)
+      ET_soil <- (PET[i] - ET_int - ET_pond)*(soil.moisture[i-1] - S_resid)/(S_stress - S_resid)
       
-      # make sure ET is not so much that it drops us below 0
-      if (ET_soil >= soil.moisture[i-1]*porosity*z_bucket){
-        ET_soil <- soil.moisture[i-1]*porosity*z_bucket
+      # make sure ET is not so much that it drops us below S_resid
+      if (ET_soil >= available_soil_moisture){
+        ET_soil <- available_soil_moisture
       }
     }
     

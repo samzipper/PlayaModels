@@ -1,4 +1,6 @@
-## DailyBucket_01_RunBucket.R
+## Bucket_01_RunBucket.R
+# This script runs the bucket model and generates some plots. 
+# The user can choose the timestep (daily or hourly) using the 'ts' variable at the top of the script.
 
 
 # Workspace prep ----------------------------------------------------------
@@ -34,7 +36,8 @@ if (ts == 1){
 
 # define parameters
 int_depth <- 0.005      # [m] maximum quantity of interception
-porosity <- 0.46        # [-] porosity of soil (Salley et al., 0.46 m3/m3)
+vwc_porosity <- 0.46    # [m3/m3] porosity of soil (Salley et al., 0.46 m3/m3)
+vwc_residual <- 0.07    # [m3/m3] minimum volumetric water content of soil (0.07 based on inspection of Mesonet data)
 Ksat <- 0.35            # [m/day] saturated hydraulic conductivity of bucket soils
 ## Salley et al. (2022): playa Ksat = 1.6e-3 to 7.8e-3 mm/s = 0.14 to 0.67 m/d
 ##                       interplaya Ksat = 2.3e-3 to 7.2e-3 mm/s = 0.20 to 0.62 m/d
@@ -42,9 +45,10 @@ Ksat <- 0.35            # [m/day] saturated hydraulic conductivity of bucket soi
 ## convert mm/s to m/d: *86400/1000
 ## convert cm/d to m/d: /100
 
-S_field <- 0.3/porosity # refine
+S_field  <- 0.16/vwc_porosity # based on inspection of Mesonet soil moisture data
 S_stress <- 0.3         # refine
 S_init <- S_field       # [-] relative soil moisture at initial conditions
+S_resid  <- vwc_residual/vwc_porosity # [-] relative soil moisture at residual
 z_bucket <- 2.0         # bucket depth - results highly sensitive to this parameter
 
 # preferential flow
@@ -87,9 +91,10 @@ interplaya_bucket <- bucket_model(precip = precip_mm_with_spinup/1000,
                                   PET = ETo_mm_with_spinup/1000, 
                                   ts = ts,
                                   Ksat = Ksat, 
-                                  porosity = porosity, 
+                                  porosity = vwc_porosity, 
                                   S_field = S_field, 
                                   S_stress = S_stress, 
+                                  S_resid = S_resid, 
                                   S_init = S_init, 
                                   int_depth = int_depth, 
                                   z_bucket = z_bucket,
@@ -112,9 +117,10 @@ playa_bucket <- bucket_model(precip = precip_mm_with_spinup/1000,
                              PET = ETo_mm_with_spinup/1000, 
                              ts = ts,
                              Ksat = Ksat, 
-                             porosity = porosity, 
+                             porosity = vwc_porosity, 
                              S_field = S_field, 
                              S_stress = S_stress, 
+                             S_resid = S_resid, 
                              S_init = S_init, 
                              int_depth = int_depth, 
                              z_bucket = z_bucket,
@@ -134,7 +140,7 @@ playa_bucket <- bucket_model(precip = precip_mm_with_spinup/1000,
 playa_plot <- 
   playa_bucket |> 
   subset(timestep > spinup_ts) |> 
-  mutate(soilMoisture_vwc = soilMoisture_prc*porosity,
+  mutate(soilMoisture_vwc = soilMoisture_prc*vwc_porosity,
          Year = year(datetime),
          DOY.dec = yday(datetime)+hour(datetime)/24) |> 
   select(-timestep, -soilMoisture_prc)
@@ -142,7 +148,7 @@ playa_plot <-
 interplaya_plot <- 
   interplaya_bucket |> 
   subset(timestep > spinup_ts) |> 
-  mutate(soilMoisture_vwc = soilMoisture_prc*porosity,
+  mutate(soilMoisture_vwc = soilMoisture_prc*vwc_porosity,
          Year = year(datetime),
          DOY.dec = yday(datetime)+hour(datetime)/24) |> 
   select(-timestep, -soilMoisture_prc)
@@ -189,12 +195,9 @@ df_vwc <-
   mutate(Year = year(datetime),
          DOY.dec = yday(datetime)+hour(datetime)/24) |> 
   pivot_longer(starts_with("vwc"), values_to = "VWC") |> 
-  subset(Year >= 2017)
-
-df_vwc$Variable <- 
-  factor(df_vwc$name, 
-         levels = c("vwc5cm", "vwc10cm", "vwc20cm", "vwc50cm"),
-         labels = c("Mesonet, 5 cm", "Mesonet, 10 cm", "Mesonet, 20 cm", "Mesonet, 50 cm"))
+  subset(Year >= 2017) |> 
+  mutate(Variable = factor(name, levels = c("vwc5cm", "vwc10cm", "vwc20cm", "vwc50cm"),
+                labels = c("Mesonet, 5 cm", "Mesonet, 10 cm", "Mesonet, 20 cm", "Mesonet, 50 cm")))
 
 p_vwc <- 
   ggplot() +
@@ -210,3 +213,12 @@ p_vwc <-
 
 ggsave(file.path("plots", paste0("Bucket_CompareVWC_", ts_label, ".png")),
        p_vwc, width = 120, height = 210, units = "mm")
+
+# inspect VWC data to get thresholds
+ggplot() +
+  geom_line(data = df_vwc, aes(x = DOY.dec, y = VWC, color = Variable)) +
+  scale_color_manual(values = c(col.cat.blu, col.cat.grn, col.cat.org, col.cat.yel)) +
+  facet_wrap(~Year, ncol = 1) +
+  geom_hline(yintercept = 0.07, color = col.gray) + # approx minimum
+  geom_hline(yintercept = 0.16, color = col.gray) + # approx field capacity
+  geom_hline(yintercept = 0.46, color = col.gray)   # porosity (from Salley)
