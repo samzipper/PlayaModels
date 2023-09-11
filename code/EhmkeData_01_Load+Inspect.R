@@ -76,7 +76,7 @@ m <-
 m
 
 htmlwidgets::saveWidget(m, 'docs//Playa_SoilMoistureData.html')
-# see at: https://samzipper.github.io/AIMS/docs/KNZ_SFM01_StageDygraph.html
+# see at: https://samzipper.github.io/PlayaModels/Playa_SoilMoistureData.html
 
 # add precip plot
 df_precip <- 
@@ -98,3 +98,4 @@ m_precip <-
   dyAxis("y")
 m_precip
 htmlwidgets::saveWidget(m_precip, 'docs//Playa_PrecipData.html')
+# see at: https://samzipper.github.io/PlayaModels/Playa_PrecipData.html
