@@ -10,6 +10,14 @@ df_raw <- read_csv(file.path("C:/Users", "s947z036", "OneDrive - University of K
                              "Research", "Playas", "EhmkeDataFromRandy", "Ehmke_Combined_Data_Trimmed.csv")) |> 
   mutate(Datetime = mdy_hm(Datetime))
 
+# add a blank NaN row between the two time periods - for graphing
+df_blank <- df_raw[1,]
+df_blank$Datetime <- mdy_hm("6/10/2019 15:00")
+df_blank[,2:18] <- NaN
+
+df_raw <- bind_rows(df_raw, df_blank) |> 
+  arrange(Datetime)
+
 # calculate soil moisture from swp using VG function
 # parameters from Salley et al SI for silt (top layer)
 thetaR <- 0.034
@@ -55,7 +63,8 @@ df_xts<-xts(df_xts, order.by=df_xts$Datetime)
 df_xts<-df_xts[,-1]
 
 #Plot
-dygraph(df_xts) %>%
+m <- 
+  dygraph(df_xts) %>%
   dyRangeSelector() %>%
   dyLegend() %>%
   dyOptions(strokeWidth = 1.5) %>%
@@ -64,3 +73,28 @@ dygraph(df_xts) %>%
               highlightSeriesBackgroundAlpha = 0.2,
               hideOnMouseOut = FALSE) %>%
   dyAxis("y")
+m
+
+htmlwidgets::saveWidget(m, 'docs//Playa_SoilMoistureData.html')
+# see at: https://samzipper.github.io/AIMS/docs/KNZ_SFM01_StageDygraph.html
+
+# add precip plot
+df_precip <- 
+  df_raw |> 
+  dplyr::select(Datetime, rain_mm)
+
+df_precip<-xts(df_precip, order.by=df_precip$Datetime)
+df_precip<-df_precip[,-1]
+
+m_precip <- 
+  dygraph(df_precip) %>%
+  dyRangeSelector() %>%
+  dyLegend() %>%
+  dyOptions(strokeWidth = 1.5) %>%
+  dyOptions(labelsUTC = TRUE) %>%
+  dyHighlight(highlightCircleSize = 5,
+              highlightSeriesBackgroundAlpha = 0.2,
+              hideOnMouseOut = FALSE) %>%
+  dyAxis("y")
+m_precip
+htmlwidgets::saveWidget(m_precip, 'docs//Playa_PrecipData.html')
