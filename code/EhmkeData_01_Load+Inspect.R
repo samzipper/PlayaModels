@@ -10,13 +10,11 @@ df_raw <- read_csv(file.path("C:/Users", "s947z036", "OneDrive - University of K
                              "Research", "Playas", "EhmkeDataFromRandy", "Ehmke_Combined_Data_Trimmed.csv")) |> 
   mutate(Datetime = mdy_hm(Datetime))
 
-# add a blank NaN row between the two time periods - for graphing
-df_blank <- df_raw[1,]
-df_blank$Datetime <- mdy_hm("6/10/2019 15:00")
-df_blank[,2:18] <- NaN
-
-df_raw <- bind_rows(df_raw, df_blank) |> 
-  arrange(Datetime)
+# add a blank NaN row between time periods - for graphing
+i_chunk1end <- max(which(year(df_raw$Datetime) == 2017))
+i_chunk2end <- max(which(year(df_raw$Datetime) == 2019))
+df_raw[i_chunk1end, 2:14] <- NaN
+df_raw[i_chunk2end, 2:14] <- NaN
 
 # calculate soil moisture from swp using VG function
 # parameters from Salley et al SI for silt (top layer)
@@ -47,9 +45,22 @@ df_raw |>
   dplyr::select(Datetime, swp_kPa_12cm, swp_kPa_47cm, swp_kPa_96cm, swp_kPa_152cm) |> 
   pivot_longer(-Datetime, names_to = "Depth", values_to = "SWP") |> 
   ggplot(aes(x = Datetime, y = SWP, color = Depth)) + 
-  geom_line() +
-  scale_y_log10()
+  geom_line()
 
+# calculate depth-integrated soil moisture storage
+bucket_depth <- 2 # [m] how deep to go
+# vwc_12cm = 0 to 0.3 m = 0.3 m
+# vwc_47cm = 0.3 to 0.72 m = 0.42 m
+# vwc_96cm = 0.72 to 1.24 m = 0.52 m
+# vwc_152cm = 1.24 to bucket_depth = bucket_depth - 1.24 m
+df_raw$soilMoisture_m <- 
+  df_raw$vwc_12cm*0.3 + 
+  df_raw$vwc_47cm*0.42 +
+  df_raw$vwc_96cm*0.52 +
+  df_raw$vwc_152cm*(bucket_depth - 1.24)
+
+ggplot(df_raw, aes(x = Datetime, y = soilMoisture_m)) +
+  geom_line()
 
 # inspect - dygraph
 library(dygraphs)
