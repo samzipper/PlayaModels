@@ -144,7 +144,7 @@ playa_plot <-
          Year = year(datetime),
          DOY.dec = yday(datetime)+hour(datetime)/24,
          Source = "Model",
-         Setting = "Interplaya") |> 
+         Setting = "Playa") |> 
   select(-timestep, -soilMoisture_prc)
 
 interplaya_plot <- 
@@ -207,7 +207,8 @@ df_vwc_obs <-
     dplyr::select(df_vwc_mesonet, Date, soilMoisture_m_top1.5m, Source, Setting),
     dplyr::select(df_vwc_ehmke, Date, soilMoisture_m_top1.5m, Source, Setting)
   ) |> 
-  mutate(Type = "Obs")
+  mutate(Type = "Obs") |> 
+  rename(soilMoisture_m = soilMoisture_m_top1.5m)
 
 # get simulated soil moisture data
 df_vwc_sim <-
@@ -215,15 +216,17 @@ df_vwc_sim <-
     dplyr::select(playa_plot, datetime, soilMoisture_m, Source, Setting),
     dplyr::select(interplaya_plot, datetime, soilMoisture_m, Source, Setting)
   ) |> 
-  mutate(Type = "Model")
+  mutate(Type = "Model") |> 
+  rename(Date = datetime)
 
 # combine for comparison
+df_vwc_compare <-
+  bind_rows(df_vwc_obs, df_vwc_sim)
 
 
-
-
-ggplot(df_vwc_obs, aes(x = Date, y = soilMoisture_m_top1.5m, color = Setting)) +
-  geom_point()
+ggplot() +
+  geom_line(data = subset(df_vwc_compare, Type == "Model"), aes(x = Date, y = soilMoisture_m, color = Setting)) +
+  geom_point(data = subset(df_vwc_compare, Type == "Obs"), aes(x = Date, y = soilMoisture_m, color = Setting))
 
 p_vwc <- 
   ggplot() +

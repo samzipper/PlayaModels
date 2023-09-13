@@ -110,3 +110,28 @@ m_precip <-
 m_precip
 htmlwidgets::saveWidget(m_precip, 'docs//Playa_PrecipData.html')
 # see at: https://samzipper.github.io/PlayaModels/Playa_PrecipData.html
+
+# add swp plot
+df_swp <- 
+  df_raw |> 
+  dplyr::select(Datetime, starts_with("swp_"))
+
+# calculate absolute values
+df_swp[,2:5] <- abs(df_swp[,2:5])
+
+df_swp<-xts(df_swp, order.by=df_swp$Datetime)
+df_swp<-df_swp[,-1]
+
+m_swp <- 
+  dygraph(df_swp) %>%
+  dyRangeSelector() %>%
+  dyLegend() %>%
+  dyOptions(strokeWidth = 1.5) %>%
+  dyOptions(labelsUTC = TRUE) %>%
+  dyHighlight(highlightCircleSize = 5,
+              highlightSeriesBackgroundAlpha = 0.2,
+              hideOnMouseOut = FALSE) %>%
+  dyAxis("y", label = "abs(SWP)", logscale = T)
+m_swp
+htmlwidgets::saveWidget(m_swp, 'docs//Playa_SWPdata.html')
+# see at: https://samzipper.github.io/PlayaModels/Playa_SWPdata.html
