@@ -49,7 +49,7 @@ S_field  <- 0.16/vwc_porosity # based on inspection of Mesonet soil moisture dat
 S_stress <- 0.3         # refine
 S_init <- S_field       # [-] relative soil moisture at initial conditions
 S_resid  <- vwc_residual/vwc_porosity # [-] relative soil moisture at residual
-z_bucket <- 1.5         # bucket depth - results highly sensitive to this parameter
+z_bucket <- 1.5         # [m] bucket depth - results highly sensitive to this parameter
 
 # preferential flow
 S_open <- S_stress
@@ -140,17 +140,21 @@ playa_bucket <- bucket_model(precip = precip_mm_with_spinup/1000,
 playa_plot <- 
   playa_bucket |> 
   subset(timestep > spinup_ts) |> 
-  mutate(soilMoisture_vwc = soilMoisture_prc*vwc_porosity,
+  mutate(soilMoisture_m = soilMoisture_prc*vwc_porosity*z_bucket,
          Year = year(datetime),
-         DOY.dec = yday(datetime)+hour(datetime)/24) |> 
+         DOY.dec = yday(datetime)+hour(datetime)/24,
+         Source = "Model",
+         Setting = "Interplaya") |> 
   select(-timestep, -soilMoisture_prc)
 
 interplaya_plot <- 
   interplaya_bucket |> 
   subset(timestep > spinup_ts) |> 
-  mutate(soilMoisture_vwc = soilMoisture_prc*vwc_porosity,
+  mutate(soilMoisture_m = soilMoisture_prc*vwc_porosity*z_bucket,
          Year = year(datetime),
-         DOY.dec = yday(datetime)+hour(datetime)/24) |> 
+         DOY.dec = yday(datetime)+hour(datetime)/24,
+         Source = "Model",
+         Setting = "Interplaya") |> 
   select(-timestep, -soilMoisture_prc)
 
 # set up label for plot title
@@ -158,14 +162,14 @@ ts_label <- ifelse(ts == 1, "Daily", "Hourly")
 
 ## playa
 playa_plot |> 
-  pivot_longer(-c("datetime", "Year", "DOY.dec")) |> 
+  pivot_longer(-c("datetime", "Year", "DOY.dec", "Source", "Setting")) |> 
   ggplot(aes(x = datetime, y = value)) + 
   geom_line() +
   facet_wrap(~name, scales = "free") +
   labs(title = paste0("Playa results, ", ts_label, " ts"))
 
 playa_plot |> 
-  pivot_longer(-c("datetime", "Year", "DOY.dec")) |> 
+  pivot_longer(-c("datetime", "Year", "DOY.dec", "Source", "Setting")) |> 
   ggplot(aes(x = value)) + 
   geom_histogram() +
   facet_wrap(~name, scales = "free") +
@@ -173,31 +177,53 @@ playa_plot |>
 
 ## interplaya
 interplaya_plot |> 
-  pivot_longer(-c("datetime", "Year", "DOY.dec")) |> 
+  pivot_longer(-c("datetime", "Year", "DOY.dec", "Source", "Setting")) |> 
   ggplot(aes(x = datetime, y = value)) + 
   geom_line() +
   facet_wrap(~name, scales = "free") +
   labs(title = paste0("Interplaya results, ", ts_label, " ts"))
 
 interplaya_plot |> 
-  pivot_longer(-c("datetime", "Year", "DOY.dec")) |> 
+  pivot_longer(-c("datetime", "Year", "DOY.dec", "Source", "Setting")) |> 
   ggplot(aes(x = value)) + 
   geom_histogram() +
   facet_wrap(~name, scales = "free") +
   labs(title = paste0("Interplaya results, ", ts_label, " ts"))
 
-## compare simulated and measured VWC
-# load VWC data
-df_vwc <- 
-  read_csv(file.path("data", "meteorology", "Mesonet-LaneCo_Hourly_2014-2021_Clean.csv")) |> 
-  rename(datetime = Timestamp) |> 
-  select(datetime, precip_mm, starts_with("vwc")) |> 
-  mutate(Year = year(datetime),
-         DOY.dec = yday(datetime)+hour(datetime)/24) |> 
-  pivot_longer(starts_with("vwc"), values_to = "VWC") |> 
-  subset(Year >= 2017) |> 
-  mutate(Variable = factor(name, levels = c("vwc5cm", "vwc10cm", "vwc20cm", "vwc50cm"),
-                labels = c("Mesonet, 5 cm", "Mesonet, 10 cm", "Mesonet, 20 cm", "Mesonet, 50 cm")))
+## compare simulated and measured soil moisture
+# load soil moisture data
+df_vwc_mesonet <- 
+  read_csv(file.path("data", "meteorology", "Mesonet-LaneCo_DailyFromHourly_SoilMoisture_Clean.csv")) |> 
+  mutate(Source = "Mesonet",
+         Setting = "Interplaya")
+df_vwc_ehmke <- 
+  read_csv(file.path("data", "EhmkeData_Daily.csv")) |> 
+  mutate(Source = "Ehmke",
+         Setting = "Playa")
+
+# combine observed soil moisture data
+df_vwc_obs <-
+  bind_rows(
+    dplyr::select(df_vwc_mesonet, Date, soilMoisture_m_top1.5m, Source, Setting),
+    dplyr::select(df_vwc_ehmke, Date, soilMoisture_m_top1.5m, Source, Setting)
+  ) |> 
+  mutate(Type = "Obs")
+
+# get simulated soil moisture data
+df_vwc_sim <-
+  bind_rows(
+    dplyr::select(playa_plot, datetime, soilMoisture_m, Source, Setting),
+    dplyr::select(interplaya_plot, datetime, soilMoisture_m, Source, Setting)
+  ) |> 
+  mutate(Type = "Model")
+
+# combine for comparison
+
+
+
+
+ggplot(df_vwc_obs, aes(x = Date, y = soilMoisture_m_top1.5m, color = Setting)) +
+  geom_point()
 
 p_vwc <- 
   ggplot() +
