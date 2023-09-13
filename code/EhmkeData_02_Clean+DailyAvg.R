@@ -27,28 +27,38 @@ df_raw$vwc_152cm <- VG_ThetaFromHead(df_raw$swp_kPa_152cm*kPa_to_m, # convert to
                                      ThetaR = thetaR, ThetaS = thetaS, alpha = alpha, n = n)
 
 # calculate depth-integrated soil moisture storage
-bucket_depth <- 2 # [m] how deep to go
 # vwc_12cm = 0 to 0.3 m = 0.3 m
 # vwc_47cm = 0.3 to 0.72 m = 0.42 m
 # vwc_96cm = 0.72 to 1.24 m = 0.52 m
 # vwc_152cm = 1.24 to bucket_depth = bucket_depth - 1.24 m
-df_raw$soilMoisture_m <- 
+df_raw$soilMoisture_m_top1m <- 
+  df_raw$vwc_12cm*0.3 + 
+  df_raw$vwc_47cm*0.42 +
+  df_raw$vwc_96cm*0.28
+
+df_raw$soilMoisture_m_top1.5m <- 
   df_raw$vwc_12cm*0.3 + 
   df_raw$vwc_47cm*0.42 +
   df_raw$vwc_96cm*0.52 +
-  df_raw$vwc_152cm*(bucket_depth - 1.24)
+  df_raw$vwc_152cm*(1.5 - 1.24)
 
-# rename
-names(df_raw)[names(df_raw) == "soilMoisture_m"] <- paste0("soilMoisture_m_top", bucket_depth, "m")
+df_raw$soilMoisture_m_top2m <- 
+  df_raw$vwc_12cm*0.3 + 
+  df_raw$vwc_47cm*0.42 +
+  df_raw$vwc_96cm*0.52 +
+  df_raw$vwc_152cm*(2 - 1.24)
 
 ## inspect
 df_raw |> 
-  dplyr::select(Datetime, vwc_12cm, vwc_47cm, vwc_96cm, vwc_152cm) |> 
+  dplyr::select(Datetime, starts_with("vwc_")) |> 
   pivot_longer(-Datetime, names_to = "Depth", values_to = "VWC") |> 
   ggplot(aes(x = Datetime, y = VWC, color = Depth)) + 
   geom_line()
 
-ggplot(df_raw, aes(x = Datetime, y = soilMoisture_m_top2m)) +
+df_raw |> 
+  dplyr::select(Datetime, starts_with("soilMoisture")) |> 
+  pivot_longer(-Datetime, names_to = "Depth", values_to = "soilMoisture_m") |> 
+  ggplot(aes(x = Datetime, y = soilMoisture_m, color = Depth)) + 
   geom_line()
 
 ## average to daily
@@ -56,17 +66,17 @@ df_d <-
   df_raw |> 
   mutate(Date = date(Datetime)) |> 
   group_by(Date) |> 
-  summarize(across(c(Tair_C, vwc_12cm, vwc_47cm, vwc_96cm, vwc_152cm, starts_with("soilMoisture")), mean),
+  summarize(across(c(Tair_C, starts_with("vwc_"), starts_with("soilMoisture")), mean),
             rain_mm = sum(rain_mm))
 
 ## save output
 # hourly
 df_raw |> 
-  dplyr::select(Datetime, rain_mm, Tair_C, ends_with("cm"), starts_with("soilMoisture")) |> 
-  mutate(across(c(ends_with("cm"), starts_with("soilMoisture")), ~ round(.x, digits = 3))) |> 
+  dplyr::select(Datetime, rain_mm, Tair_C, starts_with("vwc_"), starts_with("soilMoisture")) |> 
+  mutate(across(c(starts_with("vwc_"), starts_with("soilMoisture")), ~ round(.x, digits = 3))) |> 
   write_csv(file.path("data", "EhmkeData_Subdaily.csv"))
 
 df_d |> 
-  dplyr::select(Date, rain_mm, Tair_C, ends_with("cm"), starts_with("soilMoisture")) |> 
-  mutate(across(c(ends_with("cm"), starts_with("soilMoisture")), ~ round(.x, digits = 3))) |> 
+  dplyr::select(Date, rain_mm, Tair_C, starts_with("vwc_"), starts_with("soilMoisture")) |> 
+  mutate(across(c(starts_with("vwc_"), starts_with("soilMoisture")), ~ round(.x, digits = 3))) |> 
   write_csv(file.path("data", "EhmkeData_Daily.csv"))

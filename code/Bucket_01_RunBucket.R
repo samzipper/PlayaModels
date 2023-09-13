@@ -49,7 +49,7 @@ S_field  <- 0.16/vwc_porosity # based on inspection of Mesonet soil moisture dat
 S_stress <- 0.3         # refine
 S_init <- S_field       # [-] relative soil moisture at initial conditions
 S_resid  <- vwc_residual/vwc_porosity # [-] relative soil moisture at residual
-z_bucket <- 2.0         # bucket depth - results highly sensitive to this parameter
+z_bucket <- 1.5         # bucket depth - results highly sensitive to this parameter
 
 # preferential flow
 S_open <- S_stress
@@ -210,6 +210,7 @@ p_vwc <-
   scale_y_continuous(name = "Volumetric Water Content [m\u00b3/m\u00b3]") +
   labs(title = "Comparing buckets (black) to soil moisture sensors (colors)",
        subtitle = "Dashed = interplaya bucket, solid = playa bucket")
+p_vwc
 
 ggsave(file.path("plots", paste0("Bucket_CompareVWC_", ts_label, ".png")),
        p_vwc, width = 120, height = 210, units = "mm")

@@ -130,8 +130,6 @@ df_met$tSoil50cm_C <- na.approx(df_met$tSoil50cm_C, na.rm = F)
 #  ggplot(aes(x = Timestamp, y = value)) +
 #  geom_line() +
 #  facet_wrap(~ name)
-# mostly start in 2017 - start of record look weird so delete before 2017-08-16 15:00:00
-i_bad <- which(df_met$Timestamp == ymd_hms("2017-08-16 15:00:00"))
 # one other weird timestep in late 2019? just for a single hour. set to NA then linearly interpolate
 i_weird <- which.min(df_met$vwc50cm)
 df_met[i_weird, c("vwc5cm", "vwc10cm", "vwc20cm", "vwc50cm")] <- NA
@@ -145,6 +143,41 @@ df_met$vwc50cm <- na.approx(df_met$vwc50cm, na.rm = F)
 #  ggplot(aes(x = Timestamp, y = value)) +
 #  geom_line() +
 #  facet_wrap(~ name)
+
+# for 6/21/2017 to 8/16/2017, no data at vwc50cm; calculate storage using 20cm for 50cm
+i_no50yes20 <- which(is.na(df_met$vwc50cm) & is.finite(df_met$vwc20cm))
+df_met$vwc50cm[i_no50yes20] <- df_met$vwc20cm[i_no50yes20]  # set to 20 here to do calculations below, then set back to NA
+
+# calculate depth-integrated soil moisture storage
+# vwc5cm = 0 to 0.075 m = 0.075 m
+# vwc10cm = 0.075 to 0.15 m = 0.075 m
+# vwc20cm = 0.15 to 0.35 m = 0.20 m
+# vwc50cm = 0.35 to bucket_depth = bucket_depth - 0.35 m
+df_met$soilMoisture_m_top1m <- 
+  df_met$vwc5cm*0.075 + 
+  df_met$vwc10cm*0.075 +
+  df_met$vwc20cm*0.20 +
+  df_met$vwc50cm*(1.0 - 0.35)
+
+df_met$soilMoisture_m_top1.5m <- 
+  df_met$vwc5cm*0.075 + 
+  df_met$vwc10cm*0.075 +
+  df_met$vwc20cm*0.20 +
+  df_met$vwc50cm*(1.5 - 0.35)
+
+df_met$soilMoisture_m_top2m <- 
+  df_met$vwc5cm*0.075 + 
+  df_met$vwc10cm*0.075 +
+  df_met$vwc20cm*0.20 +
+  df_met$vwc50cm*(2.0 - 0.35)
+
+df_met$vwc50cm[i_no50yes20] <- NA  # set back to NA
+
+#df_met |> 
+#  dplyr::select(Timestamp, starts_with("soilMoisture")) |> 
+#  pivot_longer(-Timestamp, names_to = "Depth", values_to = "soilMoisture_m") |> 
+#  ggplot(aes(x = Timestamp, y = soilMoisture_m, color = Depth)) + 
+#  geom_line()
 
 ## check NAs
 summary(df_met)
@@ -201,3 +234,16 @@ df_compare |>
 first_year <- min(year(df_met$Timestamp))
 last_year <- max(year(df_met$Timestamp))
 write_csv(df_met, file.path("data", "meteorology", paste0("Mesonet-LaneCo_Hourly_", first_year, "-", last_year, "_Clean.csv")))
+
+## summarize soil moisture and temperature to daily
+df_d <-
+  df_met |> 
+  mutate(Date = date(Timestamp)) |> 
+  group_by(Date) |> 
+  summarize(across(c(starts_with("vwc"), starts_with("soilMoisture"), starts_with("tSoil")), mean))
+
+# trim to remove dates without any data
+df_d <- subset(df_d, Date >= ymd("2017-06-21"))
+
+# save
+write_csv(df_d, file.path("data", "meteorology", "Mesonet-LaneCo_DailyFromHourly_SoilMoisture_Clean.csv"))
